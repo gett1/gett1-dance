@@ -1,0 +1,65 @@
+name: Installer Gett1 Dance macOS
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/macos.yml
+      - CMakeLists.txt
+      - Source/**
+      - Tests/**
+      - Assets/**
+      - Build_macOS-*.sh
+
+permissions:
+  contents: read
+
+jobs:
+  installer:
+    name: macOS ${{ matrix.label }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15-intel
+            label: Intel
+            architecture: x86_64
+          - runner: macos-15
+            label: AppleSilicon
+            architecture: arm64
+
+    steps:
+      - name: Gett1 Dance
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: JUCE 8.0.12
+        uses: actions/checkout@v4
+        with:
+          repository: juce-framework/JUCE
+          ref: "8.0.12"
+          path: dependencies/JUCE
+          persist-credentials: false
+
+      - name: Compila e verifica VST3 e AU
+        shell: bash
+        env:
+          PROCESSOR: ${{ matrix.architecture }}
+          LABEL: ${{ matrix.label }}
+        run: |
+          set -euo pipefail
+          test "$(uname -m)" = "$PROCESSOR"
+          bash "Build_macOS-${LABEL}.sh" "$GITHUB_WORKSPACE/dependencies/JUCE"
+          test -f "dist/Gett1Dance-0.4.4-macOS-${LABEL}.pkg"
+
+      - name: Carica l'installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: Gett1Dance-0.4.4-macOS-${{ matrix.label }}
+          path: dist/Gett1Dance-0.4.4-macOS-${{ matrix.label }}.pkg
+          if-no-files-found: error
+          retention-days: 7
